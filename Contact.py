@@ -9,8 +9,8 @@ from datetime import datetime
 class ContactManager:
     def __init__(self, root):
         self.root = root
-        self.root.title("Contact Management System")
-        self.root.geometry("1000x700")
+        self.root.title("Contact Management System v2.0")
+        self.root.geometry("1100x750")
         self.root.configure(bg='#f0f0f0')
         
         # Database connection
@@ -22,6 +22,7 @@ class ContactManager:
             os.makedirs(self.images_dir)
         
         self.current_image = None
+        self.selected_contact_id = None
         self.setup_ui()
         self.load_contacts()
     
@@ -30,56 +31,65 @@ class ContactManager:
             self.db = mysql.connector.connect(
                 host='localhost',
                 user='root',  # Change to your MySQL username
-                password='Skg@5476',  # Change to your MySQL password
+                password='Skg@5476',  # Change to your MySQL password (leave empty if no password)
                 database='contact_management'
             )
             self.cursor = self.db.cursor()
+            print("✅ Database connected successfully!")
         except mysql.connector.Error as e:
-            messagebox.showerror("Database Error", f"Error connecting to database: {str(e)}")
+            messagebox.showerror("Database Error", 
+                f"❌ Error connecting to database: {str(e)}\n\n"
+                "📋 Please:\n"
+                "1. Install & start MySQL Server\n"
+                "2. Run the SQL script to create 'contact_management' database\n"
+                "3. Update username/password in line 25-28")
             self.root.quit()
     
     def setup_ui(self):
         # Main frame
-        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame = ttk.Frame(self.root, padding="15")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Title
-        title_label = ttk.Label(main_frame, text="Contact Management System", 
-                               font=('Arial', 16, 'bold'))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        title_label = ttk.Label(main_frame, text="👥 Contact Management System", 
+                               font=('Segoe UI', 18, 'bold'))
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 25))
+        
+        # Status label
+        self.status_label = ttk.Label(main_frame, text="Ready", foreground='green')
+        self.status_label.grid(row=0, column=1, columnspan=3, pady=(0, 25), sticky=tk.E)
         
         # Buttons frame
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=(0, 10))
+        btn_frame.grid(row=1, column=0, columnspan=3, sticky=tk.W, pady=(0, 15))
         
-        ttk.Button(btn_frame, text="Add Contact", command=self.add_contact, 
-                  style='Accent.TButton').pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(btn_frame, text="Edit Contact", command=self.edit_contact).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Delete Contact", command=self.delete_contact).pack(side=tk.LEFT, padx=5)
-        ttk.Button(btn_frame, text="Refresh", command=self.load_contacts).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="➕ Add Contact", command=self.add_contact).pack(side=tk.LEFT, padx=(0, 8))
+        ttk.Button(btn_frame, text="✏️ Edit Contact", command=self.edit_contact).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_frame, text="🗑️ Delete Contact", command=self.delete_contact).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_frame, text="🔄 Refresh", command=self.load_contacts).pack(side=tk.LEFT, padx=4)
         
         # Search frame
         search_frame = ttk.Frame(main_frame)
-        search_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        search_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 15))
         
-        ttk.Label(search_frame, text="Search:").pack(side=tk.LEFT)
+        ttk.Label(search_frame, text="🔍 Search:", font=('Segoe UI', 10, 'bold')).pack(side=tk.LEFT)
         self.search_var = tk.StringVar()
-        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
-        self.search_entry.pack(side=tk.LEFT, padx=(5, 5))
+        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=35, font=('Segoe UI', 10))
+        self.search_entry.pack(side=tk.LEFT, padx=(8, 8))
         self.search_entry.bind('<KeyRelease>', self.search_contacts)
-        ttk.Button(search_frame, text="Clear", command=self.clear_search).pack(side=tk.LEFT)
+        ttk.Button(search_frame, text="Clear", command=self.clear_search).pack(side=tk.LEFT, padx=4)
         
         # Notebook for tabs
         self.notebook = ttk.Notebook(main_frame)
-        self.notebook.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.notebook.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0,10))
         
         # Contacts list tab
         self.contacts_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.contacts_frame, text="Contacts")
+        self.notebook.add(self.contacts_frame, text="📋 Contacts List")
         
         # Contact details tab
         self.details_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.details_frame, text="Details")
+        self.notebook.add(self.details_frame, text="👤 Contact Details")
         
         self.setup_contacts_tab()
         self.setup_details_tab()
@@ -93,7 +103,7 @@ class ContactManager:
     def setup_contacts_tab(self):
         # Treeview for contacts
         columns = ('ID', 'Name', 'Email', 'Phone', 'Company')
-        self.tree = ttk.Treeview(self.contacts_frame, columns=columns, show='headings', height=20)
+        self.tree = ttk.Treeview(self.contacts_frame, columns=columns, show='headings', height=22)
         
         # Define headings
         self.tree.heading('ID', text='ID')
@@ -103,18 +113,20 @@ class ContactManager:
         self.tree.heading('Company', text='Company')
         
         # Column widths
-        self.tree.column('ID', width=50)
-        self.tree.column('Name', width=150)
-        self.tree.column('Email', width=200)
-        self.tree.column('Phone', width=120)
-        self.tree.column('Company', width=150)
+        self.tree.column('ID', width=60, anchor='center')
+        self.tree.column('Name', width=180)
+        self.tree.column('Email', width=250)
+        self.tree.column('Phone', width=130, anchor='center')
+        self.tree.column('Company', width=180)
         
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(self.contacts_frame, orient=tk.VERTICAL, command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
+        # Scrollbars
+        v_scrollbar = ttk.Scrollbar(self.contacts_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        h_scrollbar = ttk.Scrollbar(self.contacts_frame, orient=tk.HORIZONTAL, command=self.tree.xview)
+        self.tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
         
-        self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0,5))
+        v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
         
         self.contacts_frame.columnconfigure(0, weight=1)
         self.contacts_frame.rowconfigure(0, weight=1)
@@ -123,54 +135,81 @@ class ContactManager:
         self.tree.bind('<<TreeviewSelect>>', self.on_contact_select)
     
     def setup_details_tab(self):
-        # Image display
-        img_frame = ttk.LabelFrame(self.details_frame, text="Photo", padding="10")
-        img_frame.grid(row=0, column=0, padx=10, pady=10, sticky=(tk.N, tk.S, tk.W, tk.E))
+        # Left frame for image
+        left_frame = ttk.Frame(self.details_frame)
+        left_frame.grid(row=0, column=0, padx=15, pady=15, sticky=(tk.N, tk.S))
+        left_frame.columnconfigure(0, weight=1)
+        left_frame.rowconfigure(0, weight=1)
         
-        self.image_label = ttk.Label(img_frame, text="No image", background='white', 
-                                   width=20, height=15, relief='sunken')
-        self.image_label.grid(row=0, column=0)
+        img_container = ttk.LabelFrame(left_frame, text="📸 Photo", padding="15")
+        img_container.grid(row=0, column=0, sticky=(tk.N, tk.S, tk.E, tk.W), pady=10)
         
-        ttk.Button(img_frame, text="Change Image", command=self.change_image).grid(row=1, column=0, pady=5)
+        # FIXED: Use tk.Label for image display (ttk.Label doesn't support images well)
+        self.image_label = tk.Label(img_container, text="No image selected\n\nClick 'Change Image'\nto add photo", 
+                                   bg='white', width=28, height=18, relief='sunken', bd=2,
+                                   font=('Segoe UI', 10))
+        self.image_label.grid(row=0, column=0, pady=10)
         
-        # Details frame
-        details_frame = ttk.LabelFrame(self.details_frame, text="Contact Details", padding="10")
-        details_frame.grid(row=0, column=1, padx=10, pady=10, sticky=(tk.W, tk.E, tk.N, tk.S))
+        ttk.Button(img_container, text="📁 Change Image", command=self.change_image).grid(row=1, column=0, pady=10)
+        
+        # Right frame for details
+        right_frame = ttk.Frame(self.details_frame)
+        right_frame.grid(row=0, column=1, padx=15, pady=15, sticky=(tk.W, tk.E, tk.N, tk.S))
+        right_frame.columnconfigure(0, weight=1)
+        right_frame.rowconfigure(0, weight=1)
+        
+        details_container = ttk.LabelFrame(right_frame, text="📝 Contact Information", padding="15")
+        details_container.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Detail labels
         self.detail_labels = {}
-        fields = ['Name', 'Email', 'Phone', 'Company', 'Address', 'Notes', 'Created']
-        row = 0
-        for field in fields:
-            ttk.Label(details_frame, text=f"{field}:").grid(row=row, column=0, sticky=tk.W, pady=2)
-            self.detail_labels[field] = ttk.Label(details_frame, text="", font=('Arial', 10))
-            self.detail_labels[field].grid(row=row, column=1, sticky=(tk.W, tk.E), pady=2, padx=(10, 0))
-            row += 1
+        fields = [('👤', 'Name'), ('📧', 'Email'), ('📞', 'Phone'), ('🏢', 'Company'), 
+                 ('📍', 'Address'), ('📝', 'Notes'), ('📅', 'Created')]
         
-        self.details_frame.columnconfigure(1, weight=1)
-        self.details_frame.rowconfigure(0, weight=1)
+        for i, (icon, field) in enumerate(fields):
+            frame = ttk.Frame(details_container)
+            frame.grid(row=i//2, column=i%2, sticky=(tk.W, tk.E), padx=5, pady=5)
+            
+            ttk.Label(frame, text=f"{icon} {field}:", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+            self.detail_labels[field] = ttk.Label(frame, text="N/A", font=('Segoe UI', 9), 
+                                                foreground='#2c3e50')
+            self.detail_labels[field].pack(anchor='w', fill=tk.X)
+        
+        details_container.columnconfigure(1, weight=1)
     
     def load_contacts(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        query = "SELECT id, name, email, phone, company FROM contacts"
-        self.cursor.execute(query)
-        for row in self.cursor.fetchall():
-            self.tree.insert('', tk.END, values=row)
+        try:
+            query = "SELECT id, name, email, phone, company FROM contacts ORDER BY name"
+            self.cursor.execute(query)
+            contacts = self.cursor.fetchall()
+            for row in contacts:
+                self.tree.insert('', tk.END, values=row)
+            self.status_label.config(text=f"Loaded {len(contacts)} contacts")
+        except Exception as e:
+            self.status_label.config(text="Error loading contacts", foreground='red')
+            print(f"Load error: {e}")
     
     def search_contacts(self, event=None):
         search_term = self.search_var.get().lower()
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        query = """
-        SELECT id, name, email, phone, company FROM contacts 
-        WHERE name LIKE %s OR email LIKE %s OR phone LIKE %s OR company LIKE %s
-        """
-        self.cursor.execute(query, (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
-        for row in self.cursor.fetchall():
-            self.tree.insert('', tk.END, values=row)
+        try:
+            query = """
+            SELECT id, name, email, phone, company FROM contacts 
+            WHERE LOWER(name) LIKE %s OR LOWER(email) LIKE %s OR LOWER(phone) LIKE %s OR LOWER(company) LIKE %s
+            ORDER BY name
+            """
+            self.cursor.execute(query, (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
+            contacts = self.cursor.fetchall()
+            for row in contacts:
+                self.tree.insert('', tk.END, values=row)
+            self.status_label.config(text=f"Found {len(contacts)} contacts")
+        except Exception as e:
+            print(f"Search error: {e}")
     
     def clear_search(self):
         self.search_var.set('')
@@ -180,104 +219,119 @@ class ContactManager:
         selection = self.tree.selection()
         if selection:
             item = self.tree.item(selection[0])
-            contact_id = item['values'][0]
-            self.load_contact_details(contact_id)
+            self.selected_contact_id = item['values'][0]
+            self.load_contact_details(self.selected_contact_id)
     
     def load_contact_details(self, contact_id):
-        query = """
-        SELECT * FROM contacts WHERE id = %s
-        """
-        self.cursor.execute(query, (contact_id,))
-        contact = self.cursor.fetchone()
-        
-        if contact:
-            self.detail_labels['Name'].config(text=contact[1])
-            self.detail_labels['Email'].config(text=contact[2] or '')
-            self.detail_labels['Phone'].config(text=contact[3] or '')
-            self.detail_labels['Company'].config(text=contact[5] or '')
-            self.detail_labels['Address'].config(text=contact[4] or '')
-            self.detail_labels['Notes'].config(text=contact[7] or '')
-            self.detail_labels['Created'].config(text=contact[8].strftime('%Y-%m-%d %H:%M'))
+        try:
+            query = "SELECT * FROM contacts WHERE id = %s"
+            self.cursor.execute(query, (contact_id,))
+            contact = self.cursor.fetchone()
             
-            # Load image
-            if contact[6] and os.path.exists(contact[6]):
-                self.load_image(contact[6])
+            if contact:
+                self.detail_labels['Name'].config(text=contact[1])
+                self.detail_labels['Email'].config(text=contact[2] or 'N/A')
+                self.detail_labels['Phone'].config(text=contact[3] or 'N/A')
+                self.detail_labels['Company'].config(text=contact[5] or 'N/A')
+                self.detail_labels['Address'].config(text=contact[4] or 'N/A')
+                self.detail_labels['Notes'].config(text=contact[7] or 'N/A')
+                self.detail_labels['Created'].config(text=contact[8].strftime('%Y-%m-%d %H:%M') if contact[8] else 'N/A')
+                
+                # Load image
+                if contact[6] and os.path.exists(contact[6]):
+                    self.load_image(contact[6])
+                else:
+                    self.image_label.config(image='', text="No image")
+        except Exception as e:
+            print(f"Details load error: {e}")
     
     def load_image(self, image_path):
         try:
             img = Image.open(image_path)
-            img = img.resize((200, 250), Image.Resampling.LANCZOS)
+            # Resize maintaining aspect ratio
+            img.thumbnail((220, 280), Image.Resampling.LANCZOS)
             self.current_image = ImageTk.PhotoImage(img)
             self.image_label.config(image=self.current_image, text="")
-        except:
-            self.image_label.config(image='', text="Image not found")
+        except Exception as e:
+            self.image_label.config(image='', text="Image load error")
+            print(f"Image load error: {e}")
     
     def change_image(self):
         filename = filedialog.askopenfilename(
-            title="Select Image",
-            filetypes=[("Image files", "*.jpg *.jpeg *.png *.bmp *.gif")]
+            title="Select Contact Photo",
+            filetypes=[("Image files", "*.jpg *.jpeg *.png *.bmp *.gif *.webp")]
         )
         if filename:
-            # Copy image to our directory
-            name = os.path.splitext(os.path.basename(filename))[0]
-            ext = os.path.splitext(filename)[1]
-            new_path = os.path.join(self.images_dir, f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}")
-            shutil.copy2(filename, new_path)
-            
-            self.load_image(new_path)
+            try:
+                # Copy image to our directory with unique name
+                name = os.path.splitext(os.path.basename(filename))[0][:20]  # Limit filename length
+                ext = os.path.splitext(filename)[1]
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                new_path = os.path.join(self.images_dir, f"{name}_{timestamp}{ext}")
+                shutil.copy2(filename, new_path)
+                
+                self.load_image(new_path)
+                self.status_label.config(text=f"Image saved: {os.path.basename(new_path)}")
+            except Exception as e:
+                messagebox.showerror("Image Error", f"Failed to copy image: {str(e)}")
     
     def add_contact(self):
-        self.contact_window('Add Contact', is_edit=False)
+        self.contact_window('➕ Add New Contact', is_edit=False)
     
     def edit_contact(self):
-        selection = self.tree.selection()
-        if selection:
-            item = self.tree.item(selection[0])
-            contact_id = item['values'][0]
-            self.contact_window('Edit Contact', is_edit=True, contact_id=contact_id)
+        if self.selected_contact_id:
+            self.contact_window('✏️ Edit Contact', is_edit=True, contact_id=self.selected_contact_id)
         else:
-            messagebox.showwarning("Warning", "Please select a contact to edit")
+            messagebox.showwarning("⚠️ Warning", "Please select a contact from the list to edit")
     
     def delete_contact(self):
-        selection = self.tree.selection()
-        if selection:
-            item = self.tree.item(selection[0])
-            contact_id = item['values'][0]
-            
-            if messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this contact?"):
-                try:
-                    # Delete image if exists
-                    query = "SELECT image_path FROM contacts WHERE id = %s"
-                    self.cursor.execute(query, (contact_id,))
-                    result = self.cursor.fetchone()
-                    if result[0] and os.path.exists(result[0]):
-                        os.remove(result[0])
-                    
-                    # Delete contact
-                    query = "DELETE FROM contacts WHERE id = %s"
-                    self.cursor.execute(query, (contact_id,))
-                    self.db.commit()
-                    self.load_contacts()
-                    self.clear_details()
-                    messagebox.showinfo("Success", "Contact deleted successfully!")
-                except Exception as e:
-                    messagebox.showerror("Error", f"Error deleting contact: {str(e)}")
+        if self.selected_contact_id:
+            if messagebox.askyesno("🗑️ Confirm Delete", 
+                                 f"Are you sure you want to delete this contact?\n\nThis action cannot be undone."):
+                self.delete_selected_contact()
         else:
-            messagebox.showwarning("Warning", "Please select a contact to delete")
+            messagebox.showwarning("⚠️ Warning", "Please select a contact from the list to delete")
+    
+    def delete_selected_contact(self):
+        try:
+            # Delete image if exists
+            query = "SELECT image_path FROM contacts WHERE id = %s"
+            self.cursor.execute(query, (self.selected_contact_id,))
+            result = self.cursor.fetchone()
+            if result and result[0] and os.path.exists(result[0]):
+                os.remove(result[0])
+            
+            # Delete contact
+            query = "DELETE FROM contacts WHERE id = %s"
+            self.cursor.execute(query, (self.selected_contact_id,))
+            self.db.commit()
+            
+            self.load_contacts()
+            self.clear_details()
+            self.selected_contact_id = None
+            self.status_label.config(text="✅ Contact deleted successfully", foreground='green')
+        except Exception as e:
+            messagebox.showerror("❌ Delete Error", f"Error deleting contact:\n{str(e)}")
+    
+    def clear_details(self):
+        for label in self.detail_labels.values():
+            label.config(text='N/A')
+        self.image_label.config(image='', text="No image selected")
     
     def contact_window(self, title, is_edit=False, contact_id=None):
         window = tk.Toplevel(self.root)
         window.title(title)
-        window.geometry("500x600")
+        window.geometry("550x700")
+        window.resizable(True, True)
         window.grab_set()
+        window.transient(self.root)
+        window.configure(bg='#f8f9fa')
         
         # Variables
         name_var = tk.StringVar()
         email_var = tk.StringVar()
         phone_var = tk.StringVar()
-        address_var = tk.StringVar()
         company_var = tk.StringVar()
-        notes_var = tk.StringVar()
         image_path_var = tk.StringVar()
         
         if is_edit:
@@ -287,101 +341,46 @@ class ContactManager:
             name_var.set(contact[1])
             email_var.set(contact[2] or '')
             phone_var.set(contact[3] or '')
-            address_var.set(contact[4] or '')
             company_var.set(contact[5] or '')
-            notes_var.set(contact[7] or '')
             image_path_var.set(contact[6] or '')
         
-        # UI Elements
-        ttk.Label(window, text="Name *").pack(pady=5)
-        ttk.Entry(window, textvariable=name_var, font=('Arial', 10)).pack(pady=5, padx=20, fill=tk.X)
+        # Main container
+        main_frame = ttk.Frame(window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
-        ttk.Label(window, text="Email").pack(pady=5)
-        ttk.Entry(window, textvariable=email_var, font=('Arial', 10)).pack(pady=5, padx=20, fill=tk.X)
+        # Form title
+        ttk.Label(main_frame, text=title, font=('Segoe UI', 14, 'bold')).pack(pady=(0,20))
         
-        ttk.Label(window, text="Phone").pack(pady=5)
-        ttk.Entry(window, textvariable=phone_var, font=('Arial', 10)).pack(pady=5, padx=20, fill=tk.X)
+        # Name field (required)
+        ttk.Label(main_frame, text="👤 Name *", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+        name_entry = ttk.Entry(main_frame, textvariable=name_var, font=('Segoe UI', 10), width=40)
+        name_entry.pack(fill=tk.X, pady=(0,15))
         
-        ttk.Label(window, text="Company").pack(pady=5)
-        ttk.Entry(window, textvariable=company_var, font=('Arial', 10)).pack(pady=5, padx=20, fill=tk.X)
+        # Email field
+        ttk.Label(main_frame, text="📧 Email", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+        ttk.Entry(main_frame, textvariable=email_var, font=('Segoe UI', 10), width=40).pack(fill=tk.X, pady=(0,15))
         
-        ttk.Label(window, text="Address").pack(pady=5)
-        ttk.Text(window, height=4, font=('Arial', 10)).pack(pady=5, padx=20, fill=tk.X)
-        address_text = ttk.Text(window, height=4, font=('Arial', 10))
-        address_text.pack(pady=5, padx=20, fill=tk.X)
-        if is_edit:
-            address_text.insert('1.0', address_var.get())
+        # Phone field
+        ttk.Label(main_frame, text="📞 Phone", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+        ttk.Entry(main_frame, textvariable=phone_var, font=('Segoe UI', 10), width=40).pack(fill=tk.X, pady=(0,15))
         
-        ttk.Label(window, text="Notes").pack(pady=5)
-        notes_text = ttk.Text(window, height=4, font=('Arial', 10))
-        notes_text.pack(pady=5, padx=20, fill=tk.X)
-        if is_edit:
-            notes_text.insert('1.0', notes_var.get())
+        # Company field
+        ttk.Label(main_frame, text="🏢 Company", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+        ttk.Entry(main_frame, textvariable=company_var, font=('Segoe UI', 10), width=40).pack(fill=tk.X, pady=(0,15))
         
-        ttk.Label(window, text="Image Path").pack(pady=5)
-        ttk.Entry(window, textvariable=image_path_var, state='readonly').pack(pady=5, padx=20, fill=tk.X)
-        ttk.Button(window, text="Select Image", 
-                  command=lambda: self.select_image(image_path_var)).pack(pady=5)
+        # Address textarea
+        ttk.Label(main_frame, text="📍 Address", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+        address_frame = ttk.Frame(main_frame)
+        address_frame.pack(fill=tk.X, pady=(0,15))
+        address_text = tk.Text(address_frame, height=3, font=('Segoe UI', 10), wrap=tk.WORD, bg='white')
+        address_scroll = ttk.Scrollbar(address_frame, orient=tk.VERTICAL, command=address_text.yview)
+        address_text.configure(yscrollcommand=address_scroll.set)
+        address_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        address_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
-        def save_contact():
-            if not name_var.get().strip():
-                messagebox.showerror("Error", "Name is required!")
-                return
-            
-            address = address_text.get('1.0', tk.END).strip()
-            notes = notes_text.get('1.0', tk.END).strip()
-            
-            try:
-                if is_edit:
-                    query = """
-                    UPDATE contacts SET name=%s, email=%s, phone=%s, address=%s, 
-                    company=%s, image_path=%s, notes=%s WHERE id=%s
-                    """
-                    self.cursor.execute(query, (name_var.get(), email_var.get(), phone_var.get(),
-                                              address, company_var.get(), image_path_var.get(),
-                                              notes, contact_id))
-                else:
-                    query = """
-                    INSERT INTO contacts (name, email, phone, address, company, image_path, notes) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """
-                    self.cursor.execute(query, (name_var.get(), email_var.get(), phone_var.get(),
-                                              address, company_var.get(), image_path_var.get(), notes))
-                
-                self.db.commit()
-                self.load_contacts()
-                window.destroy()
-                messagebox.showinfo("Success", "Contact saved successfully!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Error saving contact: {str(e)}")
-        
-        btn_frame = ttk.Frame(window)
-        btn_frame.pack(pady=20)
-        ttk.Button(btn_frame, text="Save", command=save_contact).pack(side=tk.LEFT, padx=10)
-        ttk.Button(btn_frame, text="Cancel", command=window.destroy).pack(side=tk.LEFT)
-    
-    def select_image(self, var):
-        filename = filedialog.askopenfilename(
-            title="Select Image",
-            filetypes=[("Image files", "*.jpg *.jpeg *.png *.bmp *.gif")]
-        )
-        if filename:
-            name = os.path.splitext(os.path.basename(filename))[0]
-            ext = os.path.splitext(filename)[1]
-            new_path = os.path.join(self.images_dir, f"{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}")
-            shutil.copy2(filename, new_path)
-            var.set(new_path)
-    
-    def clear_details(self):
-        for label in self.detail_labels.values():
-            label.config(text='')
-        self.image_label.config(image='', text="No image")
-    
-    def __del__(self):
-        if hasattr(self, 'db'):
-            self.db.close()
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = ContactManager(root)
-    root.mainloop()
+        # Notes textarea
+        ttk.Label(main_frame, text="📝 Notes", font=('Segoe UI', 10, 'bold')).pack(anchor='w')
+        notes_frame = ttk.Frame(main_frame)
+        notes_frame.pack(fill=tk.X, pady=(0,15))
+        notes_text = tk.Text(notes_frame, height=4, font=('Segoe UI', 10), wrap=tk.WORD, bg='white')
+        notes_scroll = ttk.Scroll
