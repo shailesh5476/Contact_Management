@@ -30,7 +30,7 @@ class ContactManager:
             self.db = mysql.connector.connect(
                 host='localhost',
                 user='root',  # Change to your MySQL username
-                password='your_password',  # Change to your MySQL password
+                password='Skg@5476',  # Change to your MySQL password
                 database='contact_management'
             )
             self.cursor = self.db.cursor()
